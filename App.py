@@ -1,86 +1,74 @@
 import streamlit as st
-import numpy as np
-import sympy as sp
+from sympy import symbols, sympify, lambdify
+from scipy.integrate import quad
 import matplotlib.pyplot as plt
+import numpy as np
 
-# Setup
-st.set_page_config(page_title="Water Tank Fill Time", layout="centered")
-st.title("💧 Water Tank Fill Time Calculator")
-st.markdown("Estimate how long it takes to fill a tank using a rate function R(t) in **liters/minute**.")
+st.set_page_config(page_title="Water Tank Fill Time Estimator", layout="centered")
 
-# Tank capacity input
-capacity = st.number_input("🛢️ Tank Capacity (liters):", min_value=1.0, value=100.0)
+st.title("🚰 Water Tank Fill Time Estimator (Using Integration)")
 
-# Function selection
-preset = st.selectbox("📈 Choose Flow Rate Type", [
-    "Constant (e.g. 5)",
-    "Linear (e.g. 4*t)",
-    "Decreasing (e.g. 10 - t)",
-    "Sinusoidal (e.g. 5*sin(t))",
-    "Custom Input"
-])
+# Inputs
+rate_input = st.text_input("Enter flow rate function R(t) (e.g. 4*t, 10 - t, 5*sin(t), 5):", "4*t")
+capacity = st.number_input("Enter tank capacity (liters):", min_value=0.0, step=1.0, value=50.0)
 
-# Choose expression based on preset
-if preset == "Constant (e.g. 5)":
-    rate_input = "5"
-elif preset == "Linear (e.g. 4*t)":
-    rate_input = "4*t"
-elif preset == "Decreasing (e.g. 10 - t)":
-    rate_input = "10 - t"
-elif preset == "Sinusoidal (e.g. 5*sin(t))":
-    rate_input = "5*sin(t)"
-else:
-    rate_input = st.text_input("✍️ Enter your flow rate function R(t):", "4*t")
+# Explanation hint
+with st.expander("📘 Examples & Help"):
+    st.markdown("""
+    - **4*t** → Flow increases over time  
+    - **10 - t** → Flow decreases  
+    - **5*sin(t)** → Oscillating flow  
+    - **5** → Constant flow  
+    - Time unit is in **minutes**, and flow is in **liters/min**
+    """)
 
-# Symbol
-t = sp.symbols('t')
+# Define symbols
+t = symbols('t')
 
-# Try to parse the function
-try:
-    R = sp.sympify(rate_input)
-    R_func = sp.lambdify(t, R, 'numpy')
-except (sp.SympifyError, TypeError):
-    st.error("❌ Invalid function. Please use math syntax like 5, 4*t, 10 - t.")
-    st.stop()
+def compute_volume(upto_t, R_func):
+    result, _ = quad(R_func, 0, upto_t)
+    return result
 
-# Volume integration
-V = sp.integrate(R, t)
-V_func = sp.lambdify(t, V, 'numpy')
+def find_fill_time(capacity, R_func, tolerance=0.01):
+    low = 0
+    high = 1
+    while compute_volume(high, R_func) < capacity:
+        high *= 2  # Double until volume > capacity
+    while high - low > tolerance:
+        mid = (low + high) / 2
+        volume = compute_volume(mid, R_func)
+        if volume < capacity:
+            low = mid
+        else:
+            high = mid
+    return (low + high) / 2
 
-# Time range and volumes
-time_range = np.linspace(0, 100, 1000)
-volumes = V_func(time_range)
-
-# Estimate fill time
-valid_times = time_range[volumes >= capacity]
-if valid_times.size > 0:
-    fill_time = round(valid_times[0], 2)
-    st.success(f"⏱️ Estimated time to fill the tank: **{fill_time} minutes**")
-
-    # Plotting
-    st.subheader("📊 Flow Rate vs Time")
-    x_vals = np.linspace(0, fill_time + 2, 200)
-
+# Action
+if st.button("🧮 Calculate Fill Time"):
     try:
-        y_vals = R_func(x_vals)
-        if np.isscalar(y_vals):
-            y_vals = np.full_like(x_vals, y_vals)
-        elif len(y_vals) != len(x_vals):
-            y_vals = np.resize(y_vals, x_vals.shape)
-    except Exception as e:
-        y_vals = np.zeros_like(x_vals)
-        st.error(f"⚠️ Error evaluating flow function: {e}")
+        R = sympify(rate_input)
+        R_func = lambdify(t, R, modules=['numpy'])
 
-    fig, ax = plt.subplots()
-    ax.plot(x_vals, y_vals, label=f"R(t) = {rate_input}", color='blue')
-    ax.set_xlabel("Time [minutes]")
-    ax.set_ylabel("Flow Rate [liters/min]")
-    ax.set_title("Flow Rate Over Time")
-    ax.grid(True)
-    ax.legend()
-    st.pyplot(fig)
-else:
-    st.warning("⚠️ The tank never fills within 100 minutes. Try a higher flow rate or different function.")
+        # Calculate time to fill
+        time_required = find_fill_time(capacity, R_func)
+        st.success(f"⏱️ Estimated time to fill the tank: **{time_required:.2f} minutes**")
+
+        # Plotting the flow rate
+        times = np.linspace(0, time_required, 300)
+        try:
+            rates = R_func(times)
+            fig, ax = plt.subplots()
+            ax.plot(times, rates, color='blue')
+            ax.set_title("Flow Rate vs Time")
+            ax.set_xlabel("Time (minutes)")
+            ax.set_ylabel("Flow Rate R(t) (liters/min)")
+            ax.grid(True)
+            st.pyplot(fig)
+        except Exception:
+            st.info("Plotting skipped: function may not support array input.")
+
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
 
 
 
