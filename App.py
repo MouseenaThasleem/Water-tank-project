@@ -45,8 +45,14 @@ try:
         st.subheader("📊 Flow Rate Over Time")
         R_func = sp.lambdify(t, R, 'numpy')
         x_vals = np.linspace(0, fill_time + 2, 200)
-        y_vals = R_func(x_vals)
-
+        try:
+    y_vals = R_func(x_vals)
+    if np.isscalar(y_vals):
+        y_vals = np.full_like(x_vals, y_vals)
+except Exception as e:
+    y_vals = np.zeros_like(x_vals)
+    st.error(f"Error evaluating rate function: {e}")
+        
         fig, ax = plt.subplots()
         ax.plot(x_vals, y_vals, color='blue', label=f"R(t) = {rate_expr}")
         ax.set_xlabel("Time (t) [minutes]")
