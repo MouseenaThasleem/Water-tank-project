@@ -39,5 +39,3 @@ if st.button("Calculate Fill Time"):
         st.error(f"Error: {e}")
 '''
 
-with open("tank_simulator.py", "w") as f:
-    f.write(code)
