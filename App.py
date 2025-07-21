@@ -1,6 +1,4 @@
-# Save your Streamlit app code as a .py file
 
-code = '''
 import streamlit as st
 from sympy import symbols, sympify, lambdify
 from scipy.integrate import quad
@@ -37,5 +35,4 @@ if st.button("Calculate Fill Time"):
 
     except Exception as e:
         st.error(f"Error: {e}")
-'''
 
