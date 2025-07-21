@@ -1,4 +1,6 @@
+
+scipy
 streamlit
 sympy
-scipy
+matplotlib
 numpy
